@@ -1,5 +1,7 @@
 # Plato-Twin-Maker — The Hermit Crab Factory
 
+![CI](https://github.com/SuperInstance/plato-twin-maker/actions/workflows/ci.yml/badge.svg)
+
 > *"The hermit crab finds a shell. The shell doesn't know it's a home. The crab makes it one."*
 
 ## What It Does
