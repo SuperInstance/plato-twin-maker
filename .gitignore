@@ -1,0 +1,37 @@
+# Byte-compiled / optimized / Python files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+dist-packages/
+*.egg-info/
+*.egg
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Local clone / cache
+/tmp/ptwin-*/
+*.log
+
+# Test
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Manifests
+/tmp/twin-manifest-*.json
