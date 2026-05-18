@@ -45,6 +45,8 @@ python -m plato_twin_maker.plat_twin_maker \
 
 ## Architecture
 
+![Twin-Maker Flow](https://minimax-algeng-chat-tts-us.oss-us-east-1.aliyuncs.com/ccv2%2F2026-05-18%2FMiniMax-M2.7%2F2011972535914082833%2F1ac44729c72565046fc32f6fffcb600249f5e7864819412336edc60458910fb0..jpeg)
+
 ```
 Repository (any language)
       │
