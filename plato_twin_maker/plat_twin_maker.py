@@ -149,16 +149,44 @@ class RepoAnalyzer:
         )
 
     def _detect_language(self) -> str:
-        """Primary language of the repo."""
+        """Primary language of the repo.
+
+        Uses weighted extension counting to avoid misclassification:
+        - Weights .cpp/.cc/.hpp over .c/.h (C++ vs C)
+        - Weights .tsx/.jsx over .ts/.js (TSX vs TS)
+        - Ignores files under 100 bytes (config files skew results)
+        - Considers unique file type count as tiebreaker
+        """
         ext_counts = {}
+        ext_unique = {}  # track unique files per extension
         for f in self.path.rglob('*'):
-            if f.is_file() and not any(p in str(f) for p in ['node_modules', '.git', '__pycache__', 'target', '.venv']):
+            if f.is_file() and not any(p in str(f) for p in
+                ['node_modules', '.git', '__pycache__', 'target', '.venv', 'dist', 'build']):
+                try:
+                    if f.stat().st_size < 100:  # skip tiny config/test files
+                        continue
+                except Exception:
+                    continue
                 ext = f.suffix.lower()
-                if ext in SUPPORTED_LANGUAGES:
-                    ext_counts[ext] = ext_counts.get(ext, 0) + 1
+                if ext not in SUPPORTED_LANGUAGES:
+                    continue
+                lang = SUPPORTED_LANGUAGES[ext]
+                # Weighted scoring: prefer expressive extensions
+                weight = 1
+                if ext in ['.cpp', '.cc', '.cxx']: weight = 3  # C++ over C
+                elif ext in ['.hpp', '.hxx']: weight = 3
+                elif ext == '.c' and '.cpp' not in ext_counts: weight = 1  # C only if no C++ seen
+                elif ext == '.h' and '.hpp' not in ext_counts: weight = 1
+                elif ext in ['.tsx', '.jsx']: weight = 3  # TSX/JSX over TS/JS
+                elif ext == '.ts' and '.tsx' not in ext_counts: weight = 1
+                elif ext == '.js' and '.jsx' not in ext_counts: weight = 1
+                ext_counts[lang] = ext_counts.get(lang, 0) + weight
+                ext_unique.setdefault(lang, set()).add(ext)
         if not ext_counts:
             return 'unknown'
-        return SUPPORTED_LANGUAGES.get(max(ext_counts, key=ext_counts.get), 'unknown')
+        # Tiebreaker: prefer language with more unique extension types
+        best_lang = max(ext_counts, key=lambda l: (ext_counts[l], len(ext_unique[l])))
+        return best_lang
 
     def _find_entry_points(self) -> list[str]:
         """Find main files (main, index, __main__, etc.)."""
@@ -236,19 +264,22 @@ class RepoAnalyzer:
                     i = doc_end
                     continue
 
-            # Function definition
-            if stripped.startswith('def '):
-                match = re.match(r'def\s+(\w+)\s*\((.*?)\)(.*?):', stripped)
+            # Function definition (handles async def)
+            if stripped.startswith('def ') or stripped.startswith('async def '):
+                is_async = stripped.startswith('async ')
+                # Non-greedy (.*?) so nested type annotations (Callable[[int], str]) don't stop early
+                match = re.match(r'(?:async\s+)?def\s+(\w+)\s*\((.*?)\)(\s*->.*?)?:', stripped)
                 if match:
                     name, args, ret = match.group(1), match.group(2), match.group(3)
                     doc, doc_end = self._collect_python_docstring(lines, i + 1)
-                    ret_part = ret.strip() if ret else ''
+                    ret_clean = (ret or '').replace('->', '', 1).strip() if ret else ''
+                    async_flag = 'async ' if is_async else ''
                     self.modules.append(ModuleInfo(
                         name=name, kind='function', language='python',
                         file_path=str(f.relative_to(self.path)),
                         line_start=i + 1, line_end=doc_end,
-                        docstring=doc,
-                        signature=f"def {name}({args}){' -> ' + ret_part if ret_part else ''}",
+                        docstring=(('[async] ' if is_async else '') + doc),
+                        signature=f"{async_flag}def {name}({args}){' -> ' + ret_clean if ret_clean else ''}",
                         dependencies=self._extract_imports(content),
                         test_hints=self._suggest_tests(name, 'python'),
                     ))
